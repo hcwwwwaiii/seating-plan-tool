@@ -5,6 +5,8 @@ let currentClass = 'default';
 let classes = { default: { name: '預設座位表', students: [], history: [], seating: [], disabled: [], locked: [], rows: 6, cols: 6 } };
 let selectedSeat = null, draggedIndex = null, contextMenuTarget = null;
 const undoStacks = new Map();
+const redoStacks = new Map();
+let touchDrag = null, suppressSeatClickUntil = 0;
 const defaultRules = { genderAlternate: false, frontPoorVision: true, backTall: true };
 const modes = ['smart', 'id-vertical-ltr', 'id-vertical-rtl', 'id-horizontal-ltr', 'id-horizontal-rtl'];
 const el = id => document.getElementById(id);
@@ -44,11 +46,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!event.target.closest('#contextMenu')) el('contextMenu').classList.remove('show');
     });
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') { cancelSeatSelection(); el('contextMenu').classList.remove('show'); el('customModal').classList.remove('show'); }
+        if (event.key === 'Escape') { finishTouchDrag(); cancelSeatSelection(); el('contextMenu').classList.remove('show'); el('customModal').classList.remove('show'); }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.target.closest('input,textarea,select')) {
-            event.preventDefault(); undoLastAction();
+            event.preventDefault(); event.shiftKey ? redoLastAction() : undoLastAction();
         }
     });
+    document.addEventListener('touchmove', moveTouchDrag, { passive: false });
+    document.addEventListener('touchend', endTouchDrag, { passive: false });
+    document.addEventListener('touchcancel', () => finishTouchDrag());
+    window.addEventListener('blur', () => finishTouchDrag());
 });
 
 function bindEvents() {
@@ -100,6 +106,7 @@ function bindEvents() {
         });
     });
     el('undoBtn').addEventListener('click', undoLastAction);
+    el('redoBtn').addEventListener('click', redoLastAction);
     el('seatLockBtn').addEventListener('click', () => toggleSeatLock(selectedSeat));
     el('seatDisableBtn').addEventListener('click', () => toggleSeatStatus(selectedSeat));
     el('seatCancelBtn').addEventListener('click', cancelSeatSelection);
@@ -212,6 +219,8 @@ function rosterChanged() {
 }
 
 function rememberUndo(label) {
+    finishTouchDrag();
+    redoStacks.delete(currentClass);
     // The saved class is the state before a control's change event updates the live view.
     const stack = undoStacks.get(currentClass) || [];
     stack.push({ label, data: clone(classes[currentClass]) });
@@ -221,21 +230,35 @@ function updateUndoButton() {
     const stack = undoStacks.get(currentClass) || [];
     el('undoBtn').disabled = stack.length === 0;
     el('undoBtn').textContent = stack.length ? `↶ 復原：${stack.at(-1).label}` : '↶ 復原上一步';
+    const redo = redoStacks.get(currentClass) || [];
+    el('redoBtn').disabled = redo.length === 0;
+    el('redoBtn').textContent = redo.length ? `↷ 重做：${redo.at(-1).label}` : '↷ 重做上一步';
 }
 function undoLastAction() {
     const item = undoStacks.get(currentClass)?.pop(); if (!item) return;
+    const redo = redoStacks.get(currentClass) || [];
+    redo.push({ label: item.label, data: clone(classes[currentClass]) }); redoStacks.set(currentClass, redo);
     classes[currentClass] = item.data; loadClassData(item.data); saveToStorage();
     UI.showToast(`已復原：${item.label}`);
 }
+function redoLastAction() {
+    const item = redoStacks.get(currentClass)?.pop(); if (!item) return;
+    const undo = undoStacks.get(currentClass) || [];
+    undo.push({ label: item.label, data: clone(classes[currentClass]) }); undoStacks.set(currentClass, undo);
+    classes[currentClass] = item.data; loadClassData(item.data); saveToStorage();
+    UI.showToast(`已重做：${item.label}`);
+}
 
 function updateSeatingGrid() {
+    finishTouchDrag();
     const grid = el('seatingGrid'); grid.replaceChildren();
     grid.style.gridTemplateColumns = `repeat(${cols}, 80px)`;
     currentSeating = Array.from({ length: rows * cols }, (_, index) => currentSeating[index] || null);
     for (let index = 0; index < rows * cols; index++) {
         const seat = document.createElement('div'); seat.className = 'seat'; seat.dataset.index = index;
         seat.tabIndex = 0; seat.setAttribute('role', 'button');
-        seat.addEventListener('click', () => selectSeat(index));
+        seat.addEventListener('click', event => { if (Date.now() < suppressSeatClickUntil) { event.preventDefault(); return; } selectSeat(index); });
+        seat.addEventListener('touchstart', startTouchDrag, { passive: true });
         seat.addEventListener('keydown', event => { if (event.target === seat && ['Enter', ' '].includes(event.key)) { event.preventDefault(); selectSeat(index); } });
         seat.addEventListener('dragstart', handleDragStart);
         seat.addEventListener('dragend', () => { draggedIndex = null; document.querySelectorAll('.seat').forEach(item => item.classList.remove('dragging', 'drop-target')); });
@@ -278,11 +301,11 @@ function selectSeat(index) {
     }
     selectedSeat = index; updateSeatDisplay();
 }
-function cancelSeatSelection() { selectedSeat = null; updateSeatDisplay(); }
+function cancelSeatSelection() { finishTouchDrag(); selectedSeat = null; updateSeatDisplay(); }
 function updateSeatActions() {
     const selected = selectedSeat !== null;
     el('seatActions').hidden = !selected;
-    el('selectionHint').textContent = !selected ? '點選學生，再點另一座位即可換位' :
+    el('selectionHint').textContent = !selected ? '點選換位，或長按學生拖到另一座位' :
         lockedSeats.has(selectedSeat) ? '座位已鎖定，解鎖後才能換位' : disabledSeats.has(selectedSeat) ? '座位已禁用，可在下方啟用' :
         currentSeating[selectedSeat] ? '再點另一座位換位，或使用座位選單' : '已選中空位，可鎖定或禁用';
     if (!selected) return;
@@ -299,6 +322,7 @@ function swapSeats(from, to) {
     selectedSeat = null; updateSeatDisplay(); saveToStorage(); UI.showToast('座位交換成功');
 }
 function handleDragStart(event) {
+    if (touchDrag) { event.preventDefault(); return; }
     const index = Number(event.currentTarget.dataset.index);
     if (lockedSeats.has(index) || disabledSeats.has(index) || !currentSeating[index]) { event.preventDefault(); return; }
     draggedIndex = index; selectedSeat = null; updateSeatActions();
@@ -309,7 +333,63 @@ function handleDrop(event) {
     if (draggedIndex !== null) swapSeats(draggedIndex, to);
     draggedIndex = null; document.querySelectorAll('.seat').forEach(item => item.classList.remove('drop-target', 'dragging'));
 }
+function startTouchDrag(event) {
+    finishTouchDrag();
+    const from = Number(event.currentTarget.dataset.index);
+    if (event.touches.length !== 1 || !currentSeating[from] || lockedSeats.has(from) || disabledSeats.has(from)) return;
+    const finger = event.touches[0];
+    const drag = touchDrag = { from, id: finger.identifier, x: finger.clientX, y: finger.clientY, active: false, target: null, source: event.currentTarget };
+    drag.timer = setTimeout(() => {
+        if (touchDrag !== drag) return;
+        drag.active = true;
+        suppressSeatClickUntil = Date.now() + 800;
+        el('contextMenu').classList.remove('show');
+        drag.source.classList.add('touch-drag-source');
+        drag.ghost = drag.source.cloneNode(true);
+        drag.ghost.className = 'seat touch-drag-ghost ' + (currentSeating[from].gender === '女' ? 'female' : 'male');
+        drag.ghost.removeAttribute('role'); drag.ghost.removeAttribute('tabindex'); drag.ghost.setAttribute('aria-hidden', 'true');
+        document.body.append(drag.ghost);
+        positionTouchDrag(drag.x, drag.y);
+        el('selectionHint').textContent = '拖到藍色座位後放開換位；紅色座位不可放置';
+    }, 450);
+}
+function positionTouchDrag(x, y) {
+    const drag = touchDrag; if (!drag?.active) return;
+    drag.ghost.style.left = `${x}px`; drag.ghost.style.top = `${y - 28}px`;
+    document.querySelectorAll('.touch-drop-target,.touch-drop-blocked').forEach(seat => seat.classList.remove('touch-drop-target', 'touch-drop-blocked'));
+    const seat = document.elementFromPoint(x, y)?.closest('#seatingGrid .seat');
+    drag.target = seat ? Number(seat.dataset.index) : null;
+    if (seat && drag.target !== drag.from) seat.classList.add(lockedSeats.has(drag.target) || disabledSeats.has(drag.target) ? 'touch-drop-blocked' : 'touch-drop-target');
+}
+function moveTouchDrag(event) {
+    const drag = touchDrag; if (!drag) return;
+    if (event.touches.length !== 1) { finishTouchDrag(); return; }
+    const finger = [...event.touches].find(item => item.identifier === drag.id); if (!finger) return;
+    if (!drag.active) {
+        if (Math.hypot(finger.clientX - drag.x, finger.clientY - drag.y) > 10) finishTouchDrag();
+        return;
+    }
+    event.preventDefault(); positionTouchDrag(finger.clientX, finger.clientY);
+}
+function endTouchDrag(event) {
+    const drag = touchDrag; if (!drag) return;
+    const finger = [...event.changedTouches].find(item => item.identifier === drag.id); if (!finger) return;
+    if (!drag.active) { finishTouchDrag(); return; }
+    event.preventDefault(); positionTouchDrag(finger.clientX, finger.clientY);
+    const from = drag.from, to = drag.target;
+    finishTouchDrag();
+    if (to !== null && to !== from) swapSeats(from, to);
+}
+function finishTouchDrag() {
+    if (!touchDrag) return;
+    clearTimeout(touchDrag.timer);
+    if (touchDrag.active) suppressSeatClickUntil = Date.now() + 500;
+    touchDrag.ghost?.remove(); touchDrag = null;
+    document.querySelectorAll('.touch-drag-source,.touch-drop-target,.touch-drop-blocked').forEach(seat => seat.classList.remove('touch-drag-source', 'touch-drop-target', 'touch-drop-blocked'));
+    updateSeatActions();
+}
 function handleRightClick(event) {
+    if (touchDrag || Date.now() < suppressSeatClickUntil) { event.preventDefault(); return; }
     event.preventDefault(); contextMenuTarget = Number(event.currentTarget.dataset.index); selectedSeat = contextMenuTarget; updateSeatDisplay();
     const menu = el('contextMenu'); menu.classList.add('show');
     menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8)) + 'px';
@@ -382,6 +462,7 @@ function saveToStorage() {
     updateUndoButton();
 }
 function loadClassData(data) {
+    finishTouchDrag();
     rows = clampSize(data.rows); cols = clampSize(data.cols);
     students = (Array.isArray(data.students) ? data.students : []).map(normalizeStudent);
     const used = new Set(); students.forEach(student => { if (used.has(student.uid)) student.uid = newUid(); used.add(student.uid); });
@@ -442,7 +523,7 @@ function editClass(id, event) {
 function delClass(id, event) {
     event.stopPropagation(); if (Object.keys(classes).length === 1) return UI.showToast('必須保留至少一個方案', true);
     UI.confirm('刪除方案', `確定刪除「${classes[id].name}」？此操作不能復原。`, () => {
-        delete classes[id]; undoStacks.delete(id);
+        delete classes[id]; undoStacks.delete(id); redoStacks.delete(id);
         if (currentClass === id) { currentClass = Object.keys(classes)[0]; loadClassData(classes[currentClass]); }
         else updateClassTabs(); saveToStorage();
     });
