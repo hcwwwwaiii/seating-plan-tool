@@ -547,6 +547,12 @@
         button:focus-visible, .seat:focus-visible, summary:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
         .seat.selected { outline: 3px solid var(--primary); outline-offset: 2px; box-shadow: 0 0 0 6px #dbeafe; }
         .seat { touch-action: manipulation; }
+        .seat { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+        .touch-drag-source { opacity: .4; }
+        .touch-drop-target { outline: 3px solid var(--primary); background: #dbeafe !important; }
+        .touch-drop-blocked { outline: 3px solid var(--danger); background: #fee2e2 !important; }
+        .seat.touch-drag-ghost { position: fixed; width: 80px; height: 80px; transform: translate(-50%, -50%); pointer-events: none; z-index: 10000; opacity: .9; box-shadow: 0 8px 24px #0003; }
+        .seat-toolbar { flex-wrap: wrap; }
         .seat-lock { position: absolute; right: 4px; bottom: 3px; font-size: 11px; }
         .seating-grid-scroll { overflow-x: auto; padding: 7px; }
         .seating-grid { width: max-content; min-width: 100%; }
@@ -646,6 +652,7 @@
                     <p id="selectionHint" role="status">點選學生，再點另一座位即可換位</p>
                     <a href="#studentRoster" class="small-btn roster-link">編輯學生名單</a>
                     <button type="button" id="undoBtn" class="small-btn" disabled>↶ 復原上一步</button>
+                    <button type="button" id="redoBtn" class="small-btn" disabled>↷ 重做上一步</button>
                 </div>
                 <div id="seatActions" class="seat-actions" hidden>
                     <strong id="selectedSeatLabel"></strong>
@@ -660,7 +667,7 @@
                 <div class="instructions-box">
                     <div class="instructions-title">操作說明</div>
                     <ul class="instructions-list">
-                        <li><b>👆 點選換位</b>：點選學生，再點另一學生便交換；點空位便移過去。電腦也可拖曳。</li>
+                        <li><b>👆 換位</b>：點選學生再點另一座位，或長按學生約半秒再拖曳。藍色落點可放置，紅色座位已鎖定或禁用。未長按直接滑動仍可捲動；電腦也可拖曳。</li>
                         <li><b>座位選單</b>：點選座位後，可用下方按鈕鎖定或禁用；電腦也可按右鍵。</li>
                         <li><b>🔒 鎖定座位</b>：固定該座位（例如:指定學生或保持留空）。重新自動編排時<b>保持不變</b>，不參與隨機重排，換位前須先解鎖。</li>
                         <li><b>🚫 禁用座位</b>：將該位置設為不可用（如壞椅、空位）。重新自動編排時<b>會直接跳過</b>，不會分配任何學生。</li>
