@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同學各位找個位 - 學生座位編排工具</title>
+    <style>
+        /* 基本樣式與變數 */
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --success: #10b981;
+            --success-hover: #059669;
+            --warning: #f59e0b;
+            --text-main: #1f2937;
+            --text-light: #6b7280;
+            --bg-body: #f3f4f6;
+            --bg-panel: #ffffff;
+            --border: #e5e7eb;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.4;
+        }
+
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 12px;
+        }
+
+        /* 頂部標題與頁籤整合 */
+        header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header-brand h1 { font-size: 20px; font-weight: 700; margin-bottom: 2px; letter-spacing: 0.5px; }
+        .header-brand p { font-size: 12px; opacity: 0.85; font-weight: 300; }
+
+        /* 班級頁籤 */
+        .class-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            max-width: 100%;
+            padding: 2px 0;
+        }
+        .class-tab {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 6px;
+            padding: 5px 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            font-size: 12.5px;
+            font-weight: 500;
+            color: #f1f5f9;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .class-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .class-tab:hover:not(.active) { background: rgba(255, 255, 255, 0.25); }
+        .class-tab .actions { margin-left: 6px; display: flex; gap: 4px; }
+        .class-tab span.action-icon {
+            opacity: 0.7;
+            font-size: 11px;
+        }
+        .class-tab span.action-icon:hover { opacity: 1; transform: scale(1.15); }
+        .class-tab.add-tab {
+            background: rgba(59, 130, 246, 0.3);
+            border: 1px dashed rgba(255, 255, 255, 0.5);
+            color: #ffffff;
+        }
+        .class-tab.add-tab:hover {
+            background: rgba(59, 130, 246, 0.5);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 310px 1fr 280px;
+            gap: 12px;
+        }
+
+        /* 面板共用樣式 */
+        .panel {
+            background: var(--bg-panel);
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+            height: fit-content;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-section { margin-bottom: 10px; }
+        .panel-section:last-child { margin-bottom: 0; }
+
+        /* 表單元素 */
+        .form-group { margin-bottom: 10px; }
+        .form-row { display: flex; gap: 8px; }
+        .form-row .form-group { flex: 1; }
+        
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-main);
+        }
+
+        input[type="number"], input[type="text"], textarea, select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
+            background-color: #f9fafb;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+            background-color: #fff;
+        }
+
+        textarea#studentList { 
+            resize: vertical; 
+            min-height: 440px; 
+        }
+
+        .format-guide {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 8px;
+            font-size: 11.5px;
+            color: #475569;
+            line-height: 1.4;
+        }
+        .format-guide code {
+            background: #e2e8f0;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #0f172a;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        
+        .btn-secondary { background: #e5e7eb; color: #374151; }
+        .btn-secondary:hover { background: #d1d5db; }
+        
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: var(--success-hover); }
+
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: var(--danger-hover); }
+
+        .rule-options-group {
+            background: #f8fafc;
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-top: 8px;
+            transition: all 0.3s ease;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            cursor: pointer;
+        }
+        .checkbox-group:last-child { margin-bottom: 0; }
+        .checkbox-group input { margin-right: 8px; width: 14px; height: 14px; cursor: pointer; }
+        .checkbox-group label { margin-bottom: 0; cursor: pointer; font-weight: normal; font-size: 12.5px; }
+
+        .seating-area { position: relative; }
+        
+        .classroom-front {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 6px;
+        }
+
+        .blackboard {
+            width: 80%;
+            height: 30px;
+            background: #274e13;
+            border: 3px solid #8b5a2b;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: bold;
+            font-size: 13px;
+            letter-spacing: 3px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .teacher-desk-container {
+            width: 80%;
+            display: flex;
+            transition: all 0.3s ease;
+        }
+
+        .teacher-desk {
+            width: 100px;
+            height: 28px;
+            background: #d4a373;
+            border: 2px solid #b5835a;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #5c3a21;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .desk-left { justify-content: flex-start; }
+        .desk-center { justify-content: center; }
+        .desk-right { justify-content: flex-end; }
+
+        .seating-grid {
+            display: grid;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        .seat {
+            width: 80px;
+            height: 92px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 5px 4px;
+            background: #ffffff;
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .seat:hover:not(.disabled) {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 10px -2px rgba(0,0,0,0.1);
+            border-color: var(--primary);
+        }
+
+        .seat .s-id {
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 600;
+            text-align: left;
+            height: 12px;
+            line-height: 12px;
+        }
+
+        .seat .s-name-zh {
+            font-size: 15px;
+            font-weight: 700;
+            text-align: center;
+            color: #1e293b;
+            line-height: 1.1;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 2px 0 0 0;
+        }
+
+        .seat .s-name-en {
+            font-size: 8.5px;
+            color: #94a3b8;
+            text-align: center;
+            line-height: 1.05;
+            word-break: break-word;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            height: 20px;
+            margin-top: auto;
+        }
+
+        .seat.male { background: #eff6ff; border-color: #93c5fd; }
+        .seat.female { background: #fdf2f8; border-color: #f9a8d4; }
+        
+        .seat.male .s-name-zh { color: #1d4ed8; }
+        .seat.female .s-name-zh { color: #be185d; }
+
+        .seat.empty { background: #f8fafc; align-items: center; justify-content: center; color: #94a3b8; font-weight: 500; font-size: 12px; }
+        
+        .seat.disabled {
+            background: #fef2f2;
+            border-color: #fca5a5;
+            align-items: center;
+            justify-content: center;
+        }
+        .seat.disabled::before {
+            content: '🚫';
+            font-size: 18px;
+            opacity: 0.5;
+        }
+
+        .seat.locked { box-shadow: 0 0 0 2px var(--warning); border-color: var(--warning); }
+
+        .seat.dragging { opacity: 0.5; transform: scale(0.95); z-index: 10; }
+        .seat.drop-target { background: #fef3c7 !important; border-color: var(--warning) !important; border-style: dashed;}
+
+        .badge {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            border: 1px solid white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .badge.poor-vision { top: -3px; right: -3px; background: #9333ea; }
+        .badge.tall { top: -3px; right: 8px; background: #ea580c; }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-radius: 6px;
+            border-left: 3px solid var(--primary);
+            font-size: 12px;
+            margin-bottom: 14px;
+            justify-content: center;
+        }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); }
+
+        .instructions-box {
+            background: #f0f7ff;
+            border-left: 3px solid var(--primary);
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-top: 10px;
+        }
+        .instructions-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .instructions-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .instructions-list li {
+            position: relative;
+            padding-left: 12px;
+            font-size: 12px;
+            color: #475569;
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+        .instructions-list li:last-child {
+            margin-bottom: 0;
+        }
+        .instructions-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .history-list { max-height: 200px; overflow-y: auto; }
+        .history-item {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .history-item:hover { background: #f9fafb; }
+        .history-delete { color: var(--danger); font-weight: bold; padding: 2px 4px; border-radius: 4px; }
+        .history-delete:hover { background: #fee2e2; }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        
+        .modal-box {
+            background: white;
+            width: 90%;
+            max-width: 380px;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            transform: scale(0.95) translateY(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .modal-overlay.show .modal-box { transform: scale(1) translateY(0); }
+        
+        .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: #111827; }
+        .modal-msg { font-size: 13.5px; color: #4b5563; margin-bottom: 16px; line-height: 1.4; }
+        .modal-input {
+            width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+            margin-bottom: 16px; font-size: 14px; outline: none;
+        }
+        .modal-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .modal-btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+        .modal-btn-cancel { background: #f3f4f6; color: #374151; }
+        .modal-btn-cancel:hover { background: #e5e7eb; }
+        .modal-btn-confirm { background: var(--primary); color: white; }
+        .modal-btn-confirm:hover { background: var(--primary-hover); }
+
+        .context-menu {
+            position: absolute;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            padding: 4px 0;
+            min-width: 140px;
+            z-index: 1000;
+            display: none;
+            border: 1px solid var(--border);
+        }
+        .context-menu.show { display: block; }
+        .context-menu-item {
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .context-menu-item:hover { background: #f3f4f6; color: var(--primary); }
+
+        #toast {
+            position: fixed; top: 15px; right: 15px; z-index: 9999;
+            background: white; border-left: 4px solid var(--success);
+            padding: 12px 16px; border-radius: 6px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500; font-size: 13px; display: flex; align-items: center; gap: 8px;
+        }
+        #toast.show { transform: translateX(0); }
+
+        @media (max-width: 1024px) {
+            .main-content { grid-template-columns: 1fr; }
+            .seating-area { order: -1; }
+            header { flex-direction: column; align-items: flex-start; }
+            .class-tabs { width: 100%; }
+        }
+
+        /* Touch controls and roster editing retain the original classroom palette. */
+        [hidden] { display: none !important; }
+        .main-content { grid-template-columns: minmax(0, 1fr) 300px; }
+        .roster-panel { grid-column: 1 / -1; order: 2; }
+        .settings-panel { order: 1; }
+        .seating-area { min-width: 0; }
+        .save-status { font-size: 11px; opacity: .85; }
+        .seat-toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin: 12px 0; }
+        #selectionHint { color: #475569; font-size: 13px; }
+        .small-btn { min-height: 44px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #1e293b; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .small-btn:hover { background: #eff6ff; border-color: var(--primary); }
+        .roster-link { text-decoration: none; display: inline-flex; align-items: center; margin-left: auto; }
+        button:disabled { opacity: .45; cursor: default; }
+        button:focus-visible, .seat:focus-visible, summary:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+        .seat.selected { outline: 3px solid var(--primary); outline-offset: 2px; box-shadow: 0 0 0 6px #dbeafe; }
+        .seat { touch-action: manipulation; }
+        .seat-lock { position: absolute; right: 4px; bottom: 3px; font-size: 11px; }
+        .seating-grid-scroll { overflow-x: auto; padding: 7px; }
+        .seating-grid { width: max-content; min-width: 100%; }
+        .seat-actions { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; padding: 12px; margin: 8px 0 12px; }
+        .seat-actions strong { display: block; font-size: 13px; margin-bottom: 8px; }
+        .seat-action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .context-menu { position: fixed; }
+        button.context-menu-item { display: block; width: 100%; background: white; border: 0; min-height: 44px; text-align: left; }
+        .roster-heading { gap: 12px; flex-wrap: wrap; }
+        .roster-heading .small-btn { margin-left: auto; }
+        .muted { font-size: 12px; color: #64748b; }
+        .roster-intro { margin: 4px 0 12px; }
+        .roster-table-scroll { overflow-x: auto; max-height: 470px; }
+        .roster-table { width: 100%; min-width: 660px; border-collapse: collapse; table-layout: fixed; }
+        .roster-table th { background: #f8fafc; text-align: left; font-size: 12px; color: #475569; padding: 10px 6px; position: sticky; top: 0; z-index: 1; }
+        .roster-table td { padding: 6px; border-bottom: 1px solid var(--border); }
+        .roster-table th:first-child { width: 9%; }
+        .roster-table th:nth-child(2) { width: 22%; }
+        .roster-table th:nth-child(3) { width: 29%; }
+        .roster-table th:nth-child(4) { width: 10%; }
+        .roster-table th:nth-child(5), .roster-table th:nth-child(6) { width: 11%; text-align: center; }
+        .roster-table th:last-child { width: 8%; }
+        .roster-table input[type=text], .roster-table select { min-height: 44px; font-size: 14px; padding: 6px; }
+        .table-check { display: flex; align-items: center; justify-content: center; min-height: 44px; margin: 0; cursor: pointer; }
+        .table-check input { width: 22px; height: 22px; accent-color: var(--primary); }
+        .delete-student, .history-delete { background: transparent; border: 0; color: var(--danger); min-width: 44px; min-height: 44px; font-size: 22px; cursor: pointer; }
+        .roster-empty { padding: 18px 8px; font-size: 13px; color: #64748b; text-align: center; }
+        .bulk-roster { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 8px; }
+        .bulk-roster summary { min-height: 44px; padding: 10px 0; color: #2563eb; cursor: pointer; font-size: 13px; }
+        textarea#studentList { min-height: 160px; margin-bottom: 10px; }
+        .bulk-roster .btn { width: auto; padding: 10px 20px; }
+        .history-load { border: 0; background: transparent; text-align: left; color: #475569; font-size: 12px; min-height: 44px; cursor: pointer; flex: 1; }
+        .class-tab { padding: 0 4px; }
+        .class-name, button.action-icon { background: transparent; border: 0; color: inherit; cursor: pointer; min-height: 44px; }
+        .class-name { padding: 6px 8px; }
+        button.action-icon { min-width: 36px; }
+        button.add-tab { padding: 8px 12px; min-height: 44px; }
+        .modal-btn, .btn { min-height: 44px; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+        @media (max-width: 1024px) {
+            .main-content { grid-template-columns: minmax(0, 1fr); }
+            .roster-panel { order: 2; }
+            .settings-panel { order: 1; }
+            .seat-toolbar { flex-wrap: wrap; }
+            .roster-table { min-width: 660px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-brand">
+                <h1>🎓 同學各位找個位</h1>
+                <p>學生座位編排工具 By Sam Li · 觸控操作版</p>
+            </div>
+            <div class="class-tabs" id="classTabs"></div><span id="saveStatus" class="save-status" role="status">已儲存於此瀏覽器</span>
+        </header>
+
+        <div class="main-content">
+            <div class="panel roster-panel" id="studentRoster">
+                <div class="section-title roster-heading"><span>👥 學生名單</span><span id="rosterCount" class="muted">0 位學生</span><button type="button" id="addStudentBtn" class="small-btn">＋ 新增學生</button></div>
+                <p class="muted roster-intro">直接編輯資料，勾選需要的特徵。英文名可留空，資料會自動儲存。</p>
+                <div class="roster-table-scroll">
+                    <table class="roster-table" aria-label="學生名單與特徵">
+                        <thead><tr><th scope="col">學號</th><th scope="col">中文名</th><th scope="col">英文名（選填）</th><th scope="col">性別</th><th scope="col">視力照顧</th><th scope="col">高個子</th><th scope="col"><span class="sr-only">刪除</span></th></tr></thead>
+                        <tbody id="studentTableBody"></tbody>
+                    </table>
+                </div>
+                <p id="rosterEmpty" class="roster-empty">尚未加入學生。點「新增學生」，或在下方整批貼上名單。</p>
+                <details id="bulkRoster" class="bulk-roster">
+                    <summary>📋 整批貼上／更新名單</summary>
+                    <div class="format-guide">每行一位學生：<code>學號,中文名,英文名,性別,特殊標記</code><br>英文名可留空，例如 <code>1,陳大文,,男,視力照顧</code>。亦可直接貼上試算表的欄位。</div>
+                    <label for="studentList" class="sr-only">整批學生名單</label>
+                    <textarea id="studentList" placeholder="1,陳大文,,男,視力照顧&#10;2,李小華,,女,高個子" spellcheck="false"></textarea>
+                    <button type="button" id="applyStudentList" class="btn btn-primary">套用貼上的名單</button>
+                </details>
+            </div>
+
+            <div class="panel seating-area" id="seatingAreaNode">
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color" style="background: #eff6ff; border-color: #93c5fd;"></div>男同學</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #fdf2f8; border-color: #f9a8d4;"></div>女同學</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #f8fafc; border-color: #cbd5e1;"></div>空位</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #fef2f2; border-color: #fca5a5;"></div>禁用</div>
+                    <div class="legend-item"><div class="badge poor-vision" style="position:relative; top:0; left:0;"></div>視力照顧</div>
+                    <div class="legend-item"><div class="badge tall" style="position:relative; top:0; left:0;"></div>高個子</div>
+                </div>
+
+                <div class="classroom-front">
+                    <div class="blackboard">黑板</div>
+                    <div class="teacher-desk-container desk-left" id="teacherDeskContainer">
+                        <div class="teacher-desk">👨‍🏫 教師桌</div>
+                    </div>
+                </div>
+
+                <div class="seat-toolbar">
+                    <p id="selectionHint" role="status">點選學生，再點另一座位即可換位</p>
+                    <a href="#studentRoster" class="small-btn roster-link">編輯學生名單</a>
+                    <button type="button" id="undoBtn" class="small-btn" disabled>↶ 復原上一步</button>
+                </div>
+                <div id="seatActions" class="seat-actions" hidden>
+                    <strong id="selectedSeatLabel"></strong>
+                    <div class="seat-action-buttons" role="group" aria-label="選中座位的操作">
+                        <button type="button" id="seatLockBtn" class="small-btn">🔒 鎖定</button>
+                        <button type="button" id="seatDisableBtn" class="small-btn">🚫 禁用座位</button>
+                        <button type="button" id="seatCancelBtn" class="small-btn">取消選取</button>
+                    </div>
+                </div>
+                <div class="seating-grid-scroll"><div class="seating-grid" id="seatingGrid"></div></div>
+
+                <div class="instructions-box">
+                    <div class="instructions-title">操作說明</div>
+                    <ul class="instructions-list">
+                        <li><b>👆 點選換位</b>：點選學生，再點另一學生便交換；點空位便移過去。電腦也可拖曳。</li>
+                        <li><b>座位選單</b>：點選座位後，可用下方按鈕鎖定或禁用；電腦也可按右鍵。</li>
+                        <li><b>🔒 鎖定座位</b>：固定該座位（例如:指定學生或保持留空）。重新自動編排時<b>保持不變</b>，不參與隨機重排，換位前須先解鎖。</li>
+                        <li><b>🚫 禁用座位</b>：將該位置設為不可用（如壞椅、空位）。重新自動編排時<b>會直接跳過</b>，不會分配任何學生。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="panel settings-panel">
+                <div class="panel-section">
+                    <div class="section-title">🏫 教室佈局設定</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rows">行數 (Rows)</label>
+                            <input type="number" id="rows" min="1" max="15" value="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="cols">列數 (Cols)</label>
+                            <input type="number" id="cols" min="1" max="15" value="6">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="teacherDeskPos">教師桌位置</label>
+                        <select id="teacherDeskPos">
+                            <option value="desk-left" selected>靠左</option>
+                            <option value="desk-center">置中</option>
+                            <option value="desk-right">靠右</option>
+                        </select>
+                    </div>
+                </div>
+
+
+                <div class="panel-section">
+                    <div class="section-title">⚙️ 座位編排設定</div>
+                    <div class="form-group">
+                        <label for="arrangeMode">編排方式</label>
+                        <select id="arrangeMode">
+                            <option value="smart">按規則隨機 (按需求排列)</option>
+                            <option value="id-vertical-ltr">依學號直排 (從左至右)</option>
+                            <option value="id-vertical-rtl">依學號直排 (從右至左)</option>
+                            <option value="id-horizontal-ltr">依學號橫排 (從左至右)</option>
+                            <option value="id-horizontal-rtl">依學號橫排 (從右至左)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="rule-options-group" id="ruleOptionsGroup">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="genderAlternate">
+                            <label for="genderAlternate">男女間隔排列</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="frontPoorVision" checked>
+                            <label for="frontPoorVision">視力照顧優先坐前排（第 1–2 行）</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="backTall" checked>
+                            <label for="backTall">高個子優先坐後排（最後 2 行）</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">⚡ 快速操作</div>
+                    <button class="btn btn-primary" onclick="generateSeating()">🎲 開始編排座位</button>
+                    <button class="btn btn-success" onclick="exportHighResSeating()">💾 匯出座位圖片</button>
+                    <button class="btn btn-secondary" onclick="exportTxtConfig()">📄 匯出設定及名單 (.txt)</button>
+                    <button class="btn btn-secondary" onclick="importTxtConfig()">📂 匯入設定及名單 (.txt)</button>
+                    <button class="btn btn-danger" onclick="clearSeating()">🗑️ 清空座位表</button>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">📊 統計數據</div>
+                    <div style="font-size: 13px; color: var(--text-light); line-height: 1.8;">
+                        <div id="statTotal">全班人數：0 人</div>
+                        <div id="statMale">男：0 人 (0%)</div>
+                        <div id="statFemale">女：0 人 (0%)</div>
+                        <div id="statSeats">可用座位：0 個</div><div id="statUnseated">未入座：0 人</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-title">📚 歷史記錄</div>
+                    <div class="history-list" id="historyList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="customModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-box">
+            <div class="modal-title" id="modalTitle">標題</div>
+            <div class="modal-msg" id="modalMsg">訊息內容</div>
+            <input type="text" class="modal-input" id="modalInput" style="display: none;">
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="modalCancelBtn">取消</button>
+                <button class="modal-btn modal-btn-confirm" id="modalConfirmBtn">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="context-menu" id="contextMenu">
+        <button type="button" class="context-menu-item" id="cmToggleStatus">🚫 禁用/啟用座位</button>
+        <button type="button" class="context-menu-item" id="cmToggleLock">🔒 鎖定/解鎖座位</button>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite">✅ 提示訊息</div>
+
+    <script src="app.js"></script>
+</body>
+</html>
