@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班別座位表 · 查看</title>
+    <style>
+        :root { color-scheme: light; --ink:#1e293b; --muted:#64748b; --line:#d6dde5; --blue:#2563eb; --board:#274e3d; }
+        * { box-sizing:border-box; }
+        body { margin:0; background:#f3f4f6; color:var(--ink); font-family:'Microsoft JhengHei','PingFang TC',system-ui,sans-serif; line-height:1.5; }
+        .page { max-width:1440px; margin:auto; padding:20px; }
+        header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+        h1 { margin:0; font-size:24px; } header p { margin:4px 0 0; font-size:13px; color:var(--muted); }
+        .actions { display:flex; gap:8px; }
+        button,.link { font:inherit; font-size:14px; min-height:44px; padding:9px 14px; border:1px solid var(--line); border-radius:6px; background:white; color:var(--ink); cursor:pointer; touch-action:manipulation; }
+        .link { display:inline-flex; align-items:center; text-decoration:none; }
+        button:hover,.link:hover { border-color:var(--blue); }
+        button:focus-visible,a:focus-visible,input:focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
+        .class-nav { display:flex; flex-wrap:wrap; gap:8px; padding-bottom:18px; }
+        .class-button[aria-current="true"] { background:var(--ink); color:white; border-color:var(--ink); }
+        .class-count { font-size:12px; opacity:.75; margin-left:10px; }
+        .classroom { padding:24px; background:white; border:1px solid var(--line); border-radius:10px; }
+        .heading { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+        h2 { margin:0; font-size:22px; } #classStats { margin:3px 0 0; color:var(--muted); font-size:13px; }
+        .display-option { display:flex; align-items:center; gap:8px; min-height:44px; font-size:13px; cursor:pointer; }
+        .display-option input { width:20px; height:20px; accent-color:var(--blue); }
+        .board { max-width:600px; margin:0 auto; padding:12px; background:var(--board); color:white; text-align:center; border-bottom:4px solid #b99e79; font-size:15px; letter-spacing:4px; }
+        .desk-row { display:flex; margin:14px 0 22px; } .desk-row.center { justify-content:center; } .desk-row.right { justify-content:flex-end; }
+        .desk { border:1px solid #b9ab96; background:#faf5ec; padding:8px 22px; border-radius:4px; font-size:13px; }
+        .grid-scroll { overflow:auto; padding:2px; }
+        .seats { display:grid; gap:10px; }
+        .seat { min-width:0; min-height:100px; padding:10px 5px; background:#fff; border:1px solid #bbc7d5; border-radius:6px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+        .seat-number { font-size:12px; color:var(--muted); } .seat-name { font-size:19px; font-weight:700; overflow-wrap:anywhere; }
+        .seat-english { font-size:12px; overflow-wrap:anywhere; } .seat-tags { font-size:11px; color:#6d4c12; margin-top:4px; }
+        .male { background:#eff6ff; border-color:#93c5fd; } .female { background:#fdf2f8; border-color:#f9a8d4; }
+        .empty { color:#94a3b8; background:#f8fafc; border-style:dashed; font-size:13px; } .disabled { background:#eee; color:#64748b; border-color:#ddd; font-size:13px; }
+        .footnote { margin:18px 0 0; color:var(--muted); font-size:12px; }
+        .empty-state { background:white; border:1px solid var(--line); padding:32px; border-radius:10px; }
+        .empty-state p { margin:10px 0 18px; color:var(--muted); }
+        [hidden] { display:none !important; }
+        @media(max-width:600px) { .page { padding:12px; } .classroom { padding:16px 12px; } h1 { font-size:22px; } .heading { margin-bottom:12px; } .seats { gap:7px; } .seat-name { font-size:17px; } }
+    </style>
+</head>
+<body>
+<main class="page">
+    <header>
+        <div><h1>班別座位表</h1><p>只供查看，點選班別切換座位表。</p></div>
+        <div class="actions"><button type="button" id="refreshBtn">更新座位表</button><a class="link" href="./">前往編排</a></div>
+    </header>
+    <nav class="class-nav" id="viewClasses" aria-label="班別"></nav>
+    <section class="empty-state" id="viewEmpty" hidden>
+        <h2 id="emptyTitle">未有座位表</h2><p id="emptyMessage"></p><a class="link" href="./">前往編排頁</a>
+    </section>
+    <section class="classroom" id="viewClassroom" hidden aria-labelledby="classTitle">
+        <div class="heading">
+            <div><h2 id="classTitle"></h2><p id="classStats"></p></div>
+            <label class="display-option"><input type="checkbox" id="showDetails">顯示性別與特徵</label>
+        </div>
+        <div class="board">黑板／課室前方</div>
+        <div class="desk-row" id="viewDesk"><div class="desk">教師桌</div></div>
+        <div class="grid-scroll"><div class="seats" id="viewSeats" role="list" aria-label="座位表"></div></div>
+        <p class="footnote" id="viewNotice" role="status"></p>
+        <p class="footnote">座位表較寬時，可左右滑動查看所有列。</p>
+    </section>
+    <p class="footnote">讀取此瀏覽器已儲存的班別。編排頁儲存後會自動更新；換裝置需先到編排頁匯入 TXT。</p>
+</main>
+<script src="view.js"></script>
+</body>
+</html>
