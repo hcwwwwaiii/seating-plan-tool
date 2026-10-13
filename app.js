@@ -75,8 +75,8 @@ function bindEvents() {
         el('teacherDeskContainer').className = 'teacher-desk-container ' + el('teacherDeskPos').value;
         saveToStorage();
     });
-    el('arrangeMode').addEventListener('change', () => { rememberUndo('更改編排方式'); toggleRuleOptions(); saveToStorage(); });
-    Object.keys(defaultRules).forEach(id => el(id).addEventListener('change', () => { rememberUndo('更改編排規則'); saveToStorage(); }));
+    el('arrangeMode').addEventListener('change', () => { rememberUndo('更改編排方式'); toggleRuleOptions(); saveToStorage(); renderRuleConflicts(); });
+    Object.keys(defaultRules).forEach(id => el(id).addEventListener('change', () => { rememberUndo('更改編排規則'); saveToStorage(); renderRuleConflicts(); }));
     el('applyStudentList').addEventListener('click', applyPastedRoster);
     el('addStudentBtn').addEventListener('click', () => {
         rememberUndo('新增學生');
@@ -107,6 +107,8 @@ function bindEvents() {
     });
     el('undoBtn').addEventListener('click', undoLastAction);
     el('redoBtn').addEventListener('click', redoLastAction);
+    el('printBtn').addEventListener('click', () => { buildPrintSheet(); window.print(); });
+    window.addEventListener('beforeprint', buildPrintSheet);
     el('seatLockBtn').addEventListener('click', () => toggleSeatLock(selectedSeat));
     el('seatDisableBtn').addEventListener('click', () => toggleSeatStatus(selectedSeat));
     el('seatCancelBtn').addEventListener('click', cancelSeatSelection);
@@ -290,7 +292,75 @@ function updateSeatDisplay() {
             } else { seat.classList.add('empty'); seat.textContent = locked ? '🔒 鎖定' : '空位'; }
         }
     });
-    updateSeatActions();
+    updateSeatActions(); renderRuleConflicts();
+}
+function renderRuleConflicts() {
+    const list = el('ruleConflictList'); list.replaceChildren();
+    const vision = el('frontPoorVision').checked, tall = el('backTall').checked;
+    const frontEnd = Math.min(2, rows), backStart = Math.max(0, rows - 2);
+    const name = student => `${student.id} ${student.nameZh || '未命名'}`;
+    const add = text => { const item = document.createElement('li'); item.textContent = text; list.append(item); };
+    let conflicts = 0;
+    const placed = new Set();
+    currentSeating.forEach((student, index) => {
+        if (!student) return; placed.add(student.uid);
+        const row = Math.floor(index / cols);
+        const locked = lockedSeats.has(index) ? '；此座位已鎖定，自動編排不會移動，請先解鎖再換位' : '';
+        if (vision && student.special.includes('視力照顧') && row >= frontEnd) {
+            add(`視力照顧：${name(student)} 在第 ${row + 1} 行，未坐前 ${frontEnd} 行${locked}。`); conflicts++;
+        }
+        if (tall && student.special.includes('高個子') && !(vision && student.special.includes('視力照顧')) && row < backStart) {
+            add(`高個子：${name(student)} 在第 ${row + 1} 行，未坐後 ${Math.min(2, rows)} 行${locked}。`); conflicts++;
+        }
+    });
+    const unseated = students.filter(student => !placed.has(student.uid));
+    if (unseated.length) { add(`未入座：${unseated.map(name).join('、')}。請先編排或補上座位。`); conflicts += unseated.length; }
+    if (vision && tall) {
+        const both = students.filter(student => student.special.includes('視力照顧') && student.special.includes('高個子'));
+        if (both.length) add(`視力照顧優先：${both.map(name).join('、')} 同時勾選兩項，以前排為目標，不列為高個子後排衝突。`);
+    }
+    for (const [enabled, label, start, end] of [[vision, '前排', 0, frontEnd], [tall, '後排', backStart, rows]]) {
+        if (!enabled) continue;
+        let locked = 0, disabled = 0, free = 0;
+        for (let row = start; row < end; row++) for (let col = 0; col < cols; col++) {
+            const index = row * cols + col;
+            if (disabledSeats.has(index)) disabled++;
+            else if (lockedSeats.has(index)) locked++;
+            else free++;
+        }
+        if (locked || disabled) add(`${label}限制：${locked} 個鎖定座位、${disabled} 個禁用座位；自動編排可使用 ${free} 個未鎖定座位。鎖定座位保留原有學生或空位。`);
+    }
+    el('ruleConflictSummary').textContent = !students.length ? '加入學生後會自動檢查。' : conflicts ? `${conflicts} 項需要留意，換位後會即時更新。` : !vision && !tall ? '未啟用前後排照顧規則。' : '已入座學生符合目前啟用的前後排照顧規則。';
+    el('ruleConflictNote').textContent = el('arrangeMode').value === 'smart' ? '檢查已啟用的照顧規則；鎖定座位優先保留。' : '目前依學號編排，不會套用照顧規則；下列仍按已勾選的照顧需要檢查。';
+}
+function buildPrintSheet() {
+    const sheet = el('printSheet'); sheet.replaceChildren();
+    const showGender = el('printGender').checked, showFeatures = el('printFeatures').checked;
+    const node = (tag, text, className, parent = sheet) => {
+        const item = document.createElement(tag); item.textContent = text; item.className = className; parent.append(item); return item;
+    };
+    node('h1', `${classes[currentClass].name} · 座位表`, 'print-title');
+    node('p', `${rows} 行 × ${cols} 列　｜　${students.length} 位學生　｜　${new Date().toLocaleDateString('zh-HK')}`, 'print-meta');
+    node('div', '黑板／課室前方', 'print-board');
+    const desk = node('div', '', 'print-desk ' + el('teacherDeskPos').value);
+    node('span', '教師桌', '', desk);
+    const grid = node('div', '', 'print-grid');
+    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+    grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+    const cellHeight = (145 * 3.78 - (rows - 1) * 1.5 * 3.78) / rows;
+    const font = Math.max(6, Math.min(17, (cellHeight - 4) / 4.2, (276 * 3.78 / cols - 6) / 5));
+    grid.style.setProperty('--print-seat-font', `${font}px`);
+    currentSeating.forEach((student, index) => {
+        const cell = node('div', '', 'print-seat', grid);
+        if (disabledSeats.has(index)) { cell.classList.add('print-disabled'); node('span', '禁用', '', cell); return; }
+        if (!student) { node('span', '空位', '', cell); return; }
+        if (showGender) cell.classList.add(student.gender === '女' ? 'print-female' : 'print-male');
+        node('span', `${student.id}${showGender ? ' · ' + student.gender : ''}`, 'print-number', cell);
+        node('strong', student.nameZh || '未命名', 'print-name', cell);
+        if (student.nameEn) node('span', student.nameEn, 'print-english', cell);
+        if (showFeatures && student.special.length) node('span', student.special.join('／'), 'print-features', cell);
+    });
+    node('p', `由前至後排列${showGender ? '　｜　男／女以文字及底色標示' : ''}${showFeatures ? '　｜　特徵標記已顯示' : ''}`, 'print-footer');
 }
 function selectSeat(index) {
     el('contextMenu').classList.remove('show');
@@ -624,7 +694,7 @@ function arrangeSmartWithGenderAlt(availableStudents, isFrontPoor, isBackTall) {
         }
 
         function placeSpecialWithGender(list, tag, isFront, getTargetGenderFn) {
-            const specials = list.filter(s => s.special.includes(tag));
+            const specials = list.filter(s => s.special.includes(tag) && !(tag === '高個子' && el('frontPoorVision').checked && s.special.includes('視力照顧')));
             if (specials.length === 0) return;
 
             shuffleArray(specials);
@@ -663,7 +733,7 @@ function arrangeSmartWithGenderAlt(availableStudents, isFrontPoor, isBackTall) {
         }
 
         function placeSpecial(list, tag, isFront) {
-            const specials = list.filter(s => s.special.includes(tag));
+            const specials = list.filter(s => s.special.includes(tag) && !(tag === '高個子' && el('frontPoorVision').checked && s.special.includes('視力照顧')));
             if (specials.length === 0) return;
 
             shuffleArray(specials);
