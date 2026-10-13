@@ -599,6 +599,35 @@
             .seat-toolbar { flex-wrap: wrap; }
             .roster-table { min-width: 660px; }
         }
+        .rule-conflicts { margin-top: 16px; padding: 14px; background: #fffaf0; border: 1px solid #e7d5ac; border-radius: 8px; }
+        .rule-conflicts h2 { font-size: 15px; margin: 0 0 8px; }
+        .rule-conflicts p { margin: 6px 0; font-size: 13px; }
+        #ruleConflictList { padding-left: 20px; font-size: 13px; line-height: 1.7; max-height: 240px; overflow: auto; }
+        #ruleConflictList:empty { display: none; }
+        #printSheet { display: none; }
+        @page { size: A4 landscape; margin: 10mm; }
+        @media print {
+            html, body { margin: 0 !important; padding: 0 !important; background: white !important; min-width: 0 !important; }
+            body > * { display: none !important; }
+            body > #printSheet { display: flex !important; flex-direction: column; width: 276mm; height: 188mm; box-sizing: border-box; color: #111; font-family: -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif; break-inside: avoid; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            #printSheet * { box-sizing: border-box; }
+            .print-title { font-size: 20px; line-height: 1.2; margin: 0; height: 8mm; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+            .print-meta, .print-footer { font-size: 10px; margin: 0; height: 6mm; line-height: 6mm; }
+            .print-board { height: 9mm; line-height: 9mm; text-align: center; border: 1px solid #333; font-weight: bold; font-size: 14px; }
+            .print-desk { display: flex; height: 11mm; align-items: center; }
+            .print-desk.desk-left { justify-content: flex-start; }
+            .print-desk.desk-center { justify-content: center; }
+            .print-desk.desk-right { justify-content: flex-end; }
+            .print-desk span { border: 1px solid #888; padding: 1mm 4mm; font-size: 11px; }
+            .print-grid { display: grid; gap: 1.5mm; height: 145mm; flex: none; }
+            .print-seat { min-width: 0; min-height: 0; border: 1px solid #555; border-radius: 1mm; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: .5mm; overflow: hidden; font-size: var(--print-seat-font); line-height: 1.15; background: white; }
+            .print-seat > * { max-width: 100%; flex-shrink: 0; }
+            .print-name { font-size: 1.15em; overflow-wrap: anywhere; }
+            .print-number, .print-english, .print-features { font-size: .75em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .print-male { background: #eff6ff; }
+            .print-female { background: #fdf2f8; }
+            .print-disabled { background: #eee; color: #666; }
+        }
     </style>
 </head>
 <body>
@@ -663,6 +692,12 @@
                     </div>
                 </div>
                 <div class="seating-grid-scroll"><div class="seating-grid" id="seatingGrid"></div></div>
+                <section class="rule-conflicts" aria-labelledby="ruleConflictTitle">
+                    <h2 id="ruleConflictTitle">編排規則檢查</h2>
+                    <p id="ruleConflictSummary" role="status"></p>
+                    <p id="ruleConflictNote" class="muted"></p>
+                    <ul id="ruleConflictList"></ul>
+                </section>
 
                 <div class="instructions-box">
                     <div class="instructions-title">操作說明</div>
@@ -738,6 +773,14 @@
                 </div>
 
                 <div class="panel-section">
+                    <div class="section-title">🖨️ 列印座位表</div>
+                    <p class="muted">一頁 A4 橫向，按目前的座位排列列印。預設隱藏性別及特徵，方便張貼。</p>
+                    <div class="checkbox-group"><input type="checkbox" id="printGender"><label for="printGender">顯示性別及男女底色</label></div>
+                    <div class="checkbox-group"><input type="checkbox" id="printFeatures"><label for="printFeatures">顯示視力照顧／高個子標記</label></div>
+                    <button type="button" class="btn btn-secondary" id="printBtn">列印／另存 PDF</button>
+                    <p class="muted">列印預覽請選 A4 橫向，關閉頁首及頁尾。行列較多時文字會縮小。</p>
+                </div>
+                <div class="panel-section">
                     <div class="section-title">📊 統計數據</div>
                     <div style="font-size: 13px; color: var(--text-light); line-height: 1.8;">
                         <div id="statTotal">全班人數：0 人</div>
@@ -774,6 +817,7 @@
 
     <div id="toast" role="status" aria-live="polite">✅ 提示訊息</div>
 
+    <section id="printSheet" aria-label="列印座位表"></section>
     <script src="app.js"></script>
 </body>
 </html>
